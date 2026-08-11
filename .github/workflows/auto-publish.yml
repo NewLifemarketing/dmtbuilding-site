@@ -1,0 +1,99 @@
+# DMT Building Group — auto-publish blog PRs
+#
+# INSTALL: copy this file to the SITE repo (dmtbuilding-site) at
+#   .github/workflows/auto-publish.yml
+# and copy the companion validator to
+#   .github/scripts/validate-blog-pr.js
+# Add one repo secret (Settings → Secrets and variables → Actions):
+#   RESEND_API_KEY   (reuse NewLife's Resend key)
+#
+# What it does: on every PR from a `blog/*` branch into main, it validates the
+# post against the hard limits (only-allowed-files changed, required <head>
+# elements present, no [NEEDS SOURCE] markers left, exactly one <h1>), then:
+#   - PASS  → squash-merge + delete the branch, and email the configured recipient.
+#   - FAIL  → comment the failed checks and label the PR `validation-failed`
+#             (left open for a human; never merged).
+#
+# This is the safety net that replaces the human "eyeball the images" pause for
+# the auto-merge flow the owner chose. Until this file is installed, PRs simply
+# stay open for the owner to merge by hand — nothing breaks.
+
+name: auto-publish
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  NOTIFY_EMAIL: rudy@newlifemarketing.ca
+  NOTIFY_FROM: DMT Blog Pipeline <onboarding@resend.dev>
+
+jobs:
+  validate-and-publish:
+    # Only act on pipeline-generated blog branches.
+    if: startsWith(github.head_ref, 'blog/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate blog PR
+        id: validate
+        run: |
+          node .github/scripts/validate-blog-pr.js \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            > validation-result.txt 2>&1 && echo "ok=true" >> "$GITHUB_OUTPUT" || echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo '--- validation output ---'
+          cat validation-result.txt
+
+      - name: On failure — comment + label, do NOT merge
+        if: steps.validate.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="$(cat validation-result.txt)"
+          gh pr comment "${{ github.event.pull_request.number }}" --body "❌ Auto-publish validation failed — leaving this PR open for review.
+
+\`\`\`
+${BODY}
+\`\`\`"
+          gh label create validation-failed --color B60205 --description "Auto-publish validation failed" 2>/dev/null || true
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label validation-failed
+          exit 1
+
+      - name: On pass — squash-merge + delete branch
+        if: steps.validate.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch
+
+      - name: On pass — email the owner (Resend)
+        if: steps.validate.outputs.ok == 'true'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ -z "${RESEND_API_KEY}" ]; then
+            echo "No RESEND_API_KEY set — skipping notification (merge already done)."
+            exit 0
+          fi
+          TITLE="${{ github.event.pull_request.title }}"
+          URL="${{ github.event.pull_request.html_url }}"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer ${RESEND_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"${NOTIFY_FROM}\",\"to\":[\"${NOTIFY_EMAIL}\"],\"subject\":\"DMT blog published: ${TITLE}\",\"text\":\"A new DMT blog post was validated and merged to main.\n\n${TITLE}\n${URL}\n\nIt will be live on dmtbuilding.ca shortly.\"}"
