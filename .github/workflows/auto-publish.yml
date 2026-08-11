@@ -32,7 +32,7 @@ permissions:
 
 env:
   NOTIFY_EMAIL: rudy@newlifemarketing.ca
-  NOTIFY_FROM: DMT Blog Pipeline <onboarding@resend.dev>
+  NOTIFY_FROM: "DMT Blog Pipeline <onboarding@resend.dev>"
 
 jobs:
   validate-and-publish:
@@ -65,12 +65,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BODY="$(cat validation-result.txt)"
-          gh pr comment "${{ github.event.pull_request.number }}" --body "❌ Auto-publish validation failed — leaving this PR open for review.
-
-\`\`\`
-${BODY}
-\`\`\`"
+          {
+            echo "Auto-publish validation failed — leaving this PR open for review."
+            echo ""
+            echo '```'
+            cat validation-result.txt
+            echo '```'
+          } > pr-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file pr-comment.md
           gh label create validation-failed --color B60205 --description "Auto-publish validation failed" 2>/dev/null || true
           gh pr edit "${{ github.event.pull_request.number }}" --add-label validation-failed
           exit 1
