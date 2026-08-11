@@ -13,6 +13,10 @@
 .post-meta-byline .byl-name{font-weight:700;line-height:1.2}
 .post-meta-byline .byl-date{color:#666;font-size:.9rem}
 
+/* "We'll cover" jump-links must clear the sticky ~70px site header — otherwise the
+   target heading scrolls UNDER the header and looks cut off. Lands just above it. */
+.post-body h2,.post-body h3{scroll-margin-top:94px}
+
 /* Extra breathing room under section headings so they don't crowd the content below */
 .faq-section h2{margin-bottom:1.25rem}
 .post-related-posts h2{margin-bottom:1.25rem}
