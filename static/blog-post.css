@@ -1,0 +1,50 @@
+.post-figure{margin:1.75rem 0}
+.post-figure img{width:100%;height:auto;border-radius:8px;display:block}
+.post-figure figcaption{margin-top:.5rem;font-size:.9rem;color:#666;font-style:italic}
+.post-video{position:relative;margin:1.75rem 0;border-radius:8px;overflow:hidden}
+.post-video.landscape{aspect-ratio:16/9}
+.post-video.vertical{aspect-ratio:9/16;max-width:360px;margin-inline:auto}
+.post-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+
+/* Byline block — below the title, at the top of the content.
+   No avatar is shown unless a real headshot exists (no monogram placeholder). */
+.post-meta-byline{display:flex;align-items:center;gap:.75rem;margin:0 0 1.75rem}
+.post-meta-byline .avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;flex:0 0 auto}
+.post-meta-byline .byl-name{font-weight:700;line-height:1.2}
+.post-meta-byline .byl-date{color:#666;font-size:.9rem}
+
+/* Extra breathing room under section headings so they don't crowd the content below */
+.faq-section h2{margin-bottom:1.25rem}
+.post-related-posts h2{margin-bottom:1.25rem}
+
+/* Prev/next post navigation (below Related Posts). Next (newer) on the LEFT,
+   Previous (older) on the RIGHT — mirrors the index (newest card top-left).
+   Equal spacing above (line→buttons) and below (buttons→footer): padding 1.5rem each. */
+.post-nav{display:flex;justify-content:space-between;align-items:stretch;gap:1rem;margin:2.5rem 0 0;border-top:1px solid #e2e5e9;padding:1.5rem 0}
+.post-nav a,.post-nav span{display:inline-flex;align-items:center;gap:.4rem;max-width:48%;padding:.65rem .95rem;border:1px solid #d40b0b;border-radius:6px;color:#d40b0b;text-decoration:none;font-weight:600;font-size:.9rem;line-height:1.25}
+.post-nav a:hover{background:#d40b0b;color:#fff}
+.post-nav .nav-prev{margin-left:auto;text-align:right}
+.post-nav .is-disabled{border-color:#ccc;color:#aaa}
+
+/* "We'll cover:" table of contents */
+.post-toc{background:#f5f6f7;border-left:4px solid #d40b0b;border-radius:6px;padding:1rem 1.25rem;margin:0 0 1.75rem}
+.post-toc-label{font-weight:700;margin:0 0 .5rem}
+.post-toc ul{margin:0;padding-left:1.1rem}
+.post-toc li{margin:.3rem 0}
+.post-toc a{color:#0a1a33;text-decoration:none}
+.post-toc a:hover{text-decoration:underline;color:#d40b0b}
+
+/* Related Resources aside — boxed, floated to the side at the top on wider screens */
+.post-resources{background:#fff;border:1px solid #e2e5e9;border-radius:8px;padding:1.1rem 1.25rem;margin:0 0 1.5rem}
+.post-resources h2{font-size:1rem;margin:0 0 .6rem;text-transform:uppercase;letter-spacing:.04em}
+.post-resources ul{margin:0;padding-left:1.1rem}
+.post-resources li{margin:.35rem 0}
+.post-resources a{color:#0a1a33}
+.post-resources a:hover{color:#d40b0b}
+@media(min-width:800px){.post-resources{float:right;width:270px;margin:.25rem 0 1.25rem 1.75rem}}
+
+/* Legacy bottom author styles (kept for optional use) */
+.post-byline{margin-top:2rem;font-size:.95rem;color:#666}
+.post-author{display:flex;align-items:center;gap:1rem;margin-top:2rem}
+.post-author img{width:64px;height:64px;border-radius:50%;object-fit:cover;flex:0 0 auto}
+.post-author p{margin:0}
