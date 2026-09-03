@@ -41,16 +41,23 @@ const allowedModify = new Set(["blog/index.html", "sitemap.xml"]);
 const allowedAddOther = new Set(["static/blog-post.css"]);
 
 const newPosts = [];
+// Existing posts modified ONLY to wire prev/next nav. Added 2026-09-03, ported
+// from A&R's validator, which already had it. Without this the validator
+// rejected the pipeline's own documented behaviour -- site-publisher.md tells the
+// run to wire the previous post's nav-next, which arrives as status M while the
+// rule below demanded status A.
+const navEdits = [];
 for (const c of changes) {
   if (newPostRe.test(c.path)) {
-    if (c.status !== "A") problems.push(`Blog post file ${c.path} must be ADDED, not modified/renamed (status ${c.status}).`);
-    newPosts.push(c.path);
+    if (c.status === "A") newPosts.push(c.path);
+    else if (c.status === "M") navEdits.push(c.path);
+    else problems.push(`Blog post ${c.path} has disallowed status ${c.status}.`);
   } else if (allowedModify.has(c.path)) {
     if (c.status !== "M" && c.status !== "A") problems.push(`${c.path} changed with disallowed status ${c.status}.`);
   } else if (allowedAddOther.has(c.path)) {
     if (c.status !== "A") problems.push(`${c.path} must be ADDED once, not modified (status ${c.status}).`);
   } else {
-    problems.push(`Disallowed file changed: ${c.path} (${c.status}). A blog PR may only add /blog/{slug}/index.html and static/blog-post.css, and edit blog/index.html + sitemap.xml.`);
+    problems.push(`Disallowed file changed: ${c.path} (${c.status}). A blog PR may only add /blog/{slug}/index.html and static/blog-post.css, edit blog/index.html + sitemap.xml, and wire ONE previous post's nav.`);
   }
 }
 
@@ -58,6 +65,21 @@ if (newPosts.length === 0) {
   problems.push("No new /blog/{slug}/index.html was added — nothing to publish.");
 } else if (newPosts.length > 1) {
   problems.push(`More than one new post in a single PR (${newPosts.join(", ")}). One post per PR.`);
+}
+if (navEdits.length > 1) {
+  problems.push(`More than one existing post modified (${navEdits.join(", ")}); only the immediately-previous post nav may be wired.`);
+}
+
+// A modified existing post may ONLY have changed its prev/next nav. The allowance
+// is deliberately narrow: it lets the pipeline do the one edit it needs without
+// opening the door to quietly editing published copy.
+for (const p of navEdits) {
+  const diff = git(["diff", baseSha, headSha, "--", p]);
+  const changedLines = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l));
+  const offending = changedLines.filter((l) => !/nav-next|nav-prev|post-nav|Newest post/.test(l));
+  if (offending.length) {
+    problems.push(`${p}: a previous post may only change its prev/next nav, but other lines changed: ${offending.slice(0, 4).join(" | ")}`);
+  }
 }
 
 // 3. Validate the new post's HTML content.
