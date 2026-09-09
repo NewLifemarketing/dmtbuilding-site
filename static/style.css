@@ -39,12 +39,10 @@ p+p{margin-top:1rem}
 
 /* header */
 .site-header{position:sticky;top:0;z-index:60;background:var(--navy);box-shadow:0 2px 12px rgba(0,0,0,.25)}
-.header-inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:70px}
-.logo{display:flex;align-items:center;gap:.6rem;text-decoration:none !important}
-.logo .mark{width:42px;height:42px;flex:none}
-.logo-text{display:flex;flex-direction:column;line-height:1}
-.logo-name{font-family:Oswald,sans-serif;font-weight:700;font-size:1.5rem;color:#fff;letter-spacing:.03em}
-.logo-sub{font-size:.62rem;letter-spacing:.32em;text-transform:uppercase;color:#c7d2de;margin-top:.2rem}
+.header-inner{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:92px}
+.logo{display:flex;align-items:center;text-decoration:none !important;flex:none}
+.logo img{height:70px;width:auto;display:block}
+.site-footer .logo img{height:96px}
 .site-nav > ul{list-style:none;display:flex;align-items:center;gap:.25rem}
 .site-nav a{display:block;color:#e8eef5;font-weight:500;font-size:.95rem;padding:.65rem .8rem;border-radius:6px;text-decoration:none !important}
 .site-nav a:hover,.site-nav a.active{color:#fff;background:rgba(255,255,255,.08)}
@@ -261,6 +259,8 @@ p+p{margin-top:1rem}
   .site-nav a{padding:.6rem .55rem;font-size:.88rem}
 }
 @media(max-width:900px){
+  .logo img{height:58px}
+  .header-inner{min-height:78px}
   .nav-toggle{display:flex}
   .site-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--navy);padding:.8rem 1.25rem 1.4rem;box-shadow:0 14px 24px rgba(0,0,0,.3)}
   .site-nav.open{display:block}
