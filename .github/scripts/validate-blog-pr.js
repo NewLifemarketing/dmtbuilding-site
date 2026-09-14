@@ -40,6 +40,19 @@ const newPostRe = /^blog\/[a-z0-9-]+\/index\.html$/;
 const allowedModify = new Set(["blog/index.html", "sitemap.xml"]);
 const allowedAddOther = new Set(["static/blog-post.css"]);
 
+// Blog images the post brings with it. DMT keeps a 54-photo client library in
+// the PIPELINE repo that is not hosted anywhere, so using one means adding the
+// file here in the same PR. Until 2026-09-14 this validator rejected that
+// outright, which meant the library could never appear in a published post --
+// unnoticed for two weeks, because the image-designer was also reading the
+// library from the wrong path and seeing it as empty.
+//
+// ADDITIONS ONLY, and only real image files. An M on an existing image stays
+// refused: a blog PR has no business rewriting a photo another post uses.
+const newImageRe = /^assets\/img\/(thumbs\/)?[A-Za-z0-9][A-Za-z0-9._-]*\.(jpe?g|png|webp)$/;
+const MAX_NEW_IMAGES = 4;
+const newImages = [];
+
 const newPosts = [];
 // Existing posts modified ONLY to wire prev/next nav. Added 2026-09-03, ported
 // from A&R's validator, which already had it. Without this the validator
@@ -56,11 +69,15 @@ for (const c of changes) {
     if (c.status !== "M" && c.status !== "A") problems.push(`${c.path} changed with disallowed status ${c.status}.`);
   } else if (allowedAddOther.has(c.path)) {
     if (c.status !== "A") problems.push(`${c.path} must be ADDED once, not modified (status ${c.status}).`);
+  } else if (newImageRe.test(c.path)) {
+    if (c.status !== "A") problems.push(`${c.path}: a blog PR may ADD a new image but never modify or delete an existing one (status ${c.status}).`);
+    else newImages.push(c.path);
   } else {
-    problems.push(`Disallowed file changed: ${c.path} (${c.status}). A blog PR may only add /blog/{slug}/index.html and static/blog-post.css, edit blog/index.html + sitemap.xml, and wire ONE previous post's nav.`);
+    problems.push(`Disallowed file changed: ${c.path} (${c.status}). A blog PR may only add /blog/{slug}/index.html, static/blog-post.css and new assets/img/ photos, edit blog/index.html + sitemap.xml, and wire ONE previous post's nav.`);
   }
 }
 
+if (newImages.length > MAX_NEW_IMAGES) problems.push(`${newImages.length} new images in one blog PR (max ${MAX_NEW_IMAGES}): ${newImages.join(", ")}. A post needs a hero and a section image, not a photo dump.`);
 if (newPosts.length === 0) {
   problems.push("No new /blog/{slug}/index.html was added — nothing to publish.");
 } else if (newPosts.length > 1) {
