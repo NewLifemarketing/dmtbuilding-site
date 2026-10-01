@@ -320,3 +320,13 @@ p+p{margin-top:1rem}
 .qp-alt a{font-weight:700}
 .qp-alt span{font-size:.85rem}
 .founder-card.no-photo{grid-template-columns:1fr}
+
+/* ---------- /sitemap/ : the full page index ---------- */
+/* Single column, bulleted, child pages nested one level in. */
+.sitemap-list,.sitemap-list ul{list-style:disc}
+.sitemap-list{padding-left:1.35rem;margin:1.5rem 0 0}
+.sitemap-list ul{padding-left:1.6rem;margin:.45rem 0 .6rem}
+.sitemap-list li{margin:0 0 .45rem;font-size:.95rem;line-height:1.5}
+.sitemap-list li::marker{color:var(--red)}
+.sitemap-list a{color:var(--red);text-decoration:none}
+.sitemap-list a:hover{text-decoration:underline}
