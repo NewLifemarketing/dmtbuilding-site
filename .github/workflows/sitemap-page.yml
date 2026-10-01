@@ -1,0 +1,58 @@
+name: Rebuild site map page
+
+# Keeps /sitemap/ (the human site map) listing every page on disk. The script
+# only rewrites the <ul class="sitemap-list"> block in sitemap/index.html.
+#
+# Triggers:
+#   push to main        — manual edits, new service/project pages
+#   workflow_run        — auto-publish merges blog PRs with GITHUB_TOKEN, and a
+#                         GITHUB_TOKEN push does NOT fire `push` workflows, so
+#                         listen for auto-publish finishing instead
+#   schedule            — daily safety net
+#
+# Runs on main only, never on a blog/* PR: a blog branch is cut from an older
+# main, so rebuilding there would drop pages added since. That also keeps it
+# clear of the blog PR validator.
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [auto-publish]
+    types: [completed]
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sitemap-page
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Rebuild /sitemap/
+        run: node scripts/build-sitemap-page.mjs
+      - name: Commit if anything changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name  "newlife-bot"
+            git config user.email "bot@newlifemarketing.ca"
+            git add sitemap/index.html
+            git commit -m "Rebuild site map page"
+            git push
+          else
+            echo "Site map is current — nothing to commit."
+          fi
+        # Loop-safe: this commit is pushed with GITHUB_TOKEN, which cannot
+        # trigger another run of this workflow.
