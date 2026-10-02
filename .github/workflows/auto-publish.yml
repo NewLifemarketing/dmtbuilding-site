@@ -99,3 +99,74 @@ jobs:
             -H "Authorization: Bearer ${RESEND_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"from\":\"${NOTIFY_FROM}\",\"to\":[\"${NOTIFY_EMAIL}\"],\"subject\":\"DMT blog published: ${TITLE}\",\"text\":\"A new DMT blog post was validated and merged to main.\n\n${TITLE}\n${URL}\n\nIt will be live on dmtbuilding.ca shortly.\"}"
+
+  # ---------------------------------------------------------------- landing --
+  # Service x service-area pages from the landing-grid system. These are NOT in
+  # the nav: discovery is sitemap.xml plus the footer-linked /sitemap/ page, and
+  # the validator enforces that the PR adds the page to both.
+  #
+  #   landing/<slug>         validated, and squash-merged on a pass
+  #   landing-review/<slug>  validated, reported, and merged BY HAND
+  #
+  # Use landing-review/ until a few pages have gone through and you trust it.
+  validate-and-merge-landing:
+    if: >
+      startsWith(github.head_ref, 'landing/') ||
+      startsWith(github.head_ref, 'landing-review/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          # The validator resolves its own merge-base against origin/main. A
+          # shallow clone has no origin/main, so this must stay 0.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate landing PR
+        id: validate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          node .github/scripts/validate-landing-pr.mjs > validation-result.txt 2>&1 \
+            && echo "ok=true" >> "$GITHUB_OUTPUT" || echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo '--- validation output ---'
+          cat validation-result.txt
+
+      - name: On failure — comment + label, do NOT merge
+        if: steps.validate.outputs.ok == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "Landing-page validation failed — leaving this PR open for review."
+            echo ""
+            echo '```'
+            cat validation-result.txt
+            echo '```'
+          } > pr-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file pr-comment.md
+          gh label create validation-failed --color B60205 --description "Auto-publish validation failed" 2>/dev/null || true
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label validation-failed
+          exit 1
+
+      # A review branch is never merged here, even on a clean pass. That is the
+      # whole point of the prefix.
+      - name: On pass (review branch) — report only, do NOT merge
+        if: steps.validate.outputs.ok == 'true' && startsWith(github.head_ref, 'landing-review/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "**Validation passed.** This is a \`landing-review/\` branch, so it is not merged automatically — review the page and merge it yourself."
+
+      - name: On pass — squash-merge + delete branch
+        if: steps.validate.outputs.ok == 'true' && startsWith(github.head_ref, 'landing/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch
