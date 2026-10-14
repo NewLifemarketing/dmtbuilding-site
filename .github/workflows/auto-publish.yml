@@ -32,6 +32,7 @@ permissions:
 
 env:
   NOTIFY_EMAIL: rudy@newlifemarketing.ca
+  SITE_NAME: "DMT Building"
   NOTIFY_FROM: "DMT Blog Pipeline <onboarding@resend.dev>"
 
 jobs:
@@ -50,6 +51,34 @@ jobs:
         with:
           node-version: "20"
 
+      # ---------------------------------------------------------------- head --
+      # Repair the mechanical defects a draft's frontmatter leaks into the
+      # <head>: whitespace inside a URL, a stray quote that closes an attribute
+      # early, a JSON-LD date that is not ISO. ONLY those -- each has exactly
+      # one correct answer and no judgement in it.
+      #
+      # Anything needing judgement (a canonical pointing elsewhere, a
+      # description that is simply absent) is deliberately NOT repaired: a
+      # writer rewriting a page to pass its own gate is the gate grading its
+      # own homework. Those fail at "Head gate (final)" below.
+      #
+      # One pass. Never a loop.
+      - name: Repair the head (mechanical defects only)
+        id: headrepair
+        run: |
+          PAGE="${{ github.event.pull_request.head.ref }}/index.html"
+          node .github/scripts/blog-head-runner.mjs --page "$PAGE" --repair || true
+          if git diff --quiet; then
+            echo "repaired=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name  "blog-head-gate"
+            git config user.email "noreply@github.com"
+            git add -u
+            git commit -m "head gate: repair mechanical defects in $PAGE" -m "Recorded in .github/blog-head-repairs.jsonl. A silent repair means whatever is producing the defect never gets fixed, so the ledger makes recurrence visible."
+            git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+            echo "repaired=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Validate blog PR
         id: validate
         run: |
@@ -60,8 +89,22 @@ jobs:
           echo '--- validation output ---'
           cat validation-result.txt
 
+      # The gate that DECIDES is never the thing that repaired. Fresh read of
+      # the file, no --repair: if the repair did not actually work, this fails.
+      - name: Head gate (final, no repair)
+        id: headcheck
+        run: |
+          PAGE="${{ github.event.pull_request.head.ref }}/index.html"
+          echo '--- head gate ---' >> validation-result.txt
+          if node .github/scripts/blog-head-runner.mjs --page "$PAGE" >> validation-result.txt 2>&1; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+          tail -40 validation-result.txt
+
       - name: On failure — comment + label, do NOT merge
-        if: steps.validate.outputs.ok == 'false'
+        if: steps.validate.outputs.ok == 'false' || steps.headcheck.outputs.ok == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -77,18 +120,40 @@ jobs:
           gh pr edit "${{ github.event.pull_request.number }}" --add-label validation-failed
           exit 1
 
+      # Until now a PASS emailed and a FAIL said nothing, so a blocked post
+      # was invisible until somebody happened to look at the repo. Three
+      # NewLife posts sat failed for 8-12 days exactly that way.
+      # "Silence is never green."
+      - name: On failure — email the owner
+        if: steps.validate.outputs.ok == 'false' || steps.headcheck.outputs.ok == 'false'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ -z "${RESEND_API_KEY}" ]; then
+            echo "No RESEND_API_KEY — this job failing is the only signal."
+            exit 0
+          fi
+          TITLE="${{ github.event.pull_request.title }}"
+          URL="${{ github.event.pull_request.html_url }}"
+          WHY="$(head -c 1500 validation-result.txt | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read())[1:-1])')"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer ${RESEND_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"${NOTIFY_FROM}\",\"to\":[\"${NOTIFY_EMAIL}\"],\"subject\":\"${SITE_NAME} blog BLOCKED: ${TITLE}\",\"text\":\"This post did NOT go live. It is sitting as an open pull request.\\n\\n${TITLE}\\n${URL}\\n\\nWhy:\\n${WHY}\"}"
+
       - name: On pass — squash-merge + delete branch
-        if: steps.validate.outputs.ok == 'true'
+        if: steps.validate.outputs.ok == 'true' && steps.headcheck.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr merge "${{ github.event.pull_request.number }}" --squash --delete-branch
 
       - name: On pass — email the owner (Resend)
-        if: steps.validate.outputs.ok == 'true'
+        if: steps.validate.outputs.ok == 'true' && steps.headcheck.outputs.ok == 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
+          SITE_HOST="$(cat CNAME 2>/dev/null || echo localhost)"
           if [ -z "${RESEND_API_KEY}" ]; then
             echo "No RESEND_API_KEY set — skipping notification (merge already done)."
             exit 0
@@ -98,7 +163,7 @@ jobs:
           curl -s -X POST "https://api.resend.com/emails" \
             -H "Authorization: Bearer ${RESEND_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"from\":\"${NOTIFY_FROM}\",\"to\":[\"${NOTIFY_EMAIL}\"],\"subject\":\"DMT blog published: ${TITLE}\",\"text\":\"A new DMT blog post was validated and merged to main.\n\n${TITLE}\n${URL}\n\nIt will be live on dmtbuilding.ca shortly.\"}"
+            -d "{\"from\":\"${NOTIFY_FROM}\",\"to\":[\"${NOTIFY_EMAIL}\"],\"subject\":\"${SITE_NAME} blog published: ${TITLE}\",\"text\":\"A new ${SITE_NAME} blog post was validated and merged to main.\\n\\n${TITLE}\\n${URL}\\n\\nIt will be live on ${SITE_HOST} shortly.\"}"
 
   # ---------------------------------------------------------------- landing --
   # Service x service-area pages from the landing-grid system. These are NOT in
