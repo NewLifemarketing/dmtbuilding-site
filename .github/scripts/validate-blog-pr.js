@@ -99,6 +99,22 @@ for (const p of navEdits) {
   }
 }
 
+// The new post has to be reachable, not just published. Added 2026-10-14 after
+// barrieinsulation-site#11 shipped /blog/insulating-basement-walls/ with no card
+// on /blog/: the page returned 200, and the owner reported it as not live because
+// nothing on the site linked to it. Editing blog/index.html was ALLOWED here but
+// never REQUIRED, so a PR that skipped it passed. Now it cannot.
+for (const postPath of newPosts) {
+  const slug = postPath.split("/")[1];
+  const readHead = (f) => { try { return fs.readFileSync(f, "utf8"); } catch (e) { return ""; } };
+  if (!readHead("blog/index.html").includes(`href="/blog/${slug}/"`)) {
+    problems.push(`blog/index.html has no card linking to /blog/${slug}/. The post would be live but missing from the blog page — add its card.`);
+  }
+  if (!readHead("sitemap.xml").includes(`/blog/${slug}/</loc>`)) {
+    problems.push(`sitemap.xml has no <loc> for /blog/${slug}/.`);
+  }
+}
+
 // 3. Validate the new post's HTML content.
 for (const postPath of newPosts) {
   let html = "";
